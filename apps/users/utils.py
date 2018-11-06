@@ -372,3 +372,15 @@ def is_need_unblock(key_block):
     if not cache.get(key_block):
         return False
     return True
+
+
+def get_openid_object():
+    from keycloak import KeycloakOpenID
+    openid = KeycloakOpenID(
+        server_url=settings.AUTH_OPENID_SERVER_URL,
+        realm_name=settings.AUTH_OPENID_REALM,
+        client_id=settings.AUTH_OPENID_CLIENT_ID,
+        client_secret_key=settings.AUTH_OPENID_CLIENT_SECRET_KEY,
+        verify=False
+    )
+    return openid

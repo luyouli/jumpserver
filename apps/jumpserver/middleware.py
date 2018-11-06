@@ -5,6 +5,12 @@ import re
 import pytz
 from django.utils import timezone
 from django.shortcuts import HttpResponse
+from django.conf import settings
+from django.core.cache import cache
+from users.utils import get_openid_object
+from django.shortcuts import reverse, redirect
+from django.contrib.auth import logout as auth_logout
+from django.contrib.auth.models import AnonymousUser
 
 from .utils import set_current_request
 
@@ -56,4 +62,24 @@ class RequestMiddleware:
     def __call__(self, request):
         set_current_request(request)
         response = self.get_response(request)
+        return response
+
+
+class AuthenticationOpenIDMiddleware(object):
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if not settings.AUTH_OPENID or isinstance(request.user, AnonymousUser):
+            return response
+
+        openid = get_openid_object()
+        token = cache.get("OPENID_USER_TOKEN_{}".format(request.user.email))
+        try:
+            openid.userinfo(token['access_token'])
+        except Exception as e:
+            auth_logout(request)
+            return redirect(to=reverse('users:logout'))
+
         return response

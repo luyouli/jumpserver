@@ -15,10 +15,12 @@ from django.utils.translation import ugettext as _
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.debug import sensitive_post_parameters
-from django.views.generic.base import TemplateView
+from django.views.generic.base import TemplateView, RedirectView
 from django.views.generic.edit import FormView
 from formtools.wizard.views import SessionWizardView
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
+
 
 from common.utils import get_object_or_none, get_request_ip
 from common.models import common_settings
@@ -26,7 +28,8 @@ from ..models import User, LoginLog
 from ..utils import send_reset_password_mail, check_otp_code, \
     redirect_user_first_login_or_index, get_user_or_tmp_user, \
     set_tmp_user_to_cache, get_password_check_rules, check_password_rules, \
-    is_block_login, increase_login_failed_count, clean_failed_count
+    is_block_login, increase_login_failed_count, clean_failed_count, \
+    get_openid_object
 from ..tasks import write_login_log_async
 from .. import forms
 
@@ -35,7 +38,8 @@ __all__ = [
     'UserLoginView', 'UserLoginOtpView', 'UserLogoutView',
     'UserForgotPasswordView', 'UserForgotPasswordSendmailSuccessView',
     'UserResetPasswordView', 'UserResetPasswordSuccessView',
-    'UserFirstLoginView', 'LoginLogListView'
+    'UserFirstLoginView', 'LoginLogListView', 'UserLoginOpenIDView',
+    'UserLoginOpenIDRedirectView',
 ]
 
 
@@ -194,12 +198,87 @@ class UserLoginOtpView(FormView):
         write_login_log_async.delay(**data)
 
 
+class UserLoginOpenIDView(RedirectView):
+    url = None
+    query_string = None
+
+    def get_redirect_url(self, *args, **kwargs):
+        referer_url = self.request.META.get('HTTP_REFERER', '/')
+        if self.request.user.is_authenticated:
+            return referer_url
+
+        self.get_openid_auth_url()
+        self.get_query_string()
+        return "%s?%s" % (self.url, self.query_string)
+
+    def get_openid_auth_url(self):
+        openid = get_openid_object()
+        well_know = openid.well_know()
+        self.url = well_know.get('authorization_endpoint')
+
+    def get_query_string(self):
+        from django.http.request import QueryDict
+        redirect_url = settings.JUMPSERVER_SITE_URL + reverse(
+            'users:login-openid-redirect')
+        query = QueryDict('', mutable=True)
+        params = {
+            'client_id': settings.AUTH_OPENID_CLIENT_ID,
+            'response_type': 'code',
+            'scope': 'openid',
+            'redirect_uri': redirect_url,
+        }
+        query.update(params)
+        self.query_string = query.urlencode()
+
+
+class UserLoginOpenIDRedirectView(TemplateView):
+
+    def get(self, request, *args, **kwargs):
+        openid = get_openid_object()
+        token = self.get_token_by_code(openid)
+        userinfo = self.get_userinfo(openid, token)
+        user = get_object_or_none(model=User, username=userinfo.get('preferred_username'))
+        if not user:
+            user = User.objects.create(
+                username=userinfo.get('preferred_username'),
+                first_name=userinfo.get('given_name', ''),
+                last_name=userinfo.get('family_name', ''),
+                email=userinfo.get('email')
+            )
+        cache.set("OPENID_USER_TOKEN_{}".format(user.email), token, 12*3600)
+        auth_login(self.request, user)
+        return redirect(reverse('index'))
+
+    @staticmethod
+    def get_userinfo(openid, token):
+        userinfo = openid.userinfo(token['access_token'])
+        return userinfo
+
+    def get_token_by_code(self, openid):
+        redirect_url = settings.JUMPSERVER_SITE_URL + reverse(
+            'users:login-openid-redirect')
+        code = self.request.GET.get('code')
+        token = openid.token(
+            grant_type=["authorization_code"],
+            code=code,
+            redirect_uri=redirect_url,
+        )
+        print('token: ', token)
+        return token
+
+
 @method_decorator(never_cache, name='dispatch')
 class UserLogoutView(TemplateView):
     template_name = 'flash_message_standalone.html'
 
     def get(self, request, *args, **kwargs):
         auth_logout(request)
+        if settings.AUTH_OPENID:
+            url = '{}realms/{}/protocol/openid-connect/logout'
+            url = url.format(settings.AUTH_OPENID_SERVER_URL, settings.AUTH_OPENID_REALM)
+            query_string = 'redirect_uri=' + settings.JUMPSERVER_SITE_URL + reverse('users:login-openid')
+            url = "%s?%s" % (url, query_string)
+            return redirect(to=url)
         response = super().get(request, *args, **kwargs)
         return response
 
@@ -208,7 +287,7 @@ class UserLogoutView(TemplateView):
             'title': _('Logout success'),
             'messages': _('Logout success, return login page'),
             'interval': 1,
-            'redirect_url': reverse('users:login'),
+            'redirect_url': settings.LOGIN_URL,
             'auto_redirect': True,
         }
         kwargs.update(context)

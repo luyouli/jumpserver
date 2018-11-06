@@ -11,5 +11,3 @@ def jumpserver_processor(request):
     )
     return context
 
-
-

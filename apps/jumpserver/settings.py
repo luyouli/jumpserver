@@ -85,6 +85,7 @@ XPACK_ENABLED = os.path.isdir(XPACK_DIR)
 if XPACK_ENABLED:
     INSTALLED_APPS.append('xpack.apps.XpackConfig')
 
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -94,6 +95,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'jumpserver.middleware.AuthenticationOpenIDMiddleware',
     'jumpserver.middleware.TimezoneMiddleware',
     'jumpserver.middleware.DemoMiddleware',
     'jumpserver.middleware.RequestMiddleware',
@@ -388,6 +390,18 @@ AUTH_LDAP_BACKEND = 'django_auth_ldap.backend.LDAPBackend'
 
 if AUTH_LDAP:
     AUTHENTICATION_BACKENDS.insert(0, AUTH_LDAP_BACKEND)
+
+# Auth openid config
+JUMPSERVER_SITE_URL = CONFIG.JUMPSERVER_SITE_URL or 'http://localhost'
+AUTH_OPENID = CONFIG.AUTH_OPENID
+AUTH_OPENID_SERVER_URL = CONFIG.AUTH_OPENID_SERVER_URL
+AUTH_OPENID_REALM = CONFIG.AUTH_OPENID_REALM
+AUTH_OPENID_CLIENT_ID = CONFIG.AUTH_OPENID_CLIENT_ID
+AUTH_OPENID_CLIENT_SECRET_KEY = CONFIG.AUTH_OPENID_CLIENT_SECRET_KEY
+AUTH_OPENID_DEFAULT_ACCESS = CONFIG.AUTH_OPENID_DEFAULT_ACCESS
+
+if AUTH_OPENID:
+    LOGIN_URL = reverse_lazy('users:login-openid')
 
 # Celery using redis as broker
 CELERY_BROKER_URL = 'redis://:%(password)s@%(host)s:%(port)s/%(db)s' % {

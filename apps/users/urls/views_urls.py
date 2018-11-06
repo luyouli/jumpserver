@@ -11,6 +11,12 @@ urlpatterns = [
     path('login/', views.UserLoginView.as_view(), name='login'),
     path('logout/', views.UserLogoutView.as_view(), name='logout'),
     path('login/otp/', views.UserLoginOtpView.as_view(), name='login-otp'),
+
+    path('login/openid/', views.UserLoginOpenIDView.as_view(),
+         name='login-openid'),
+    path('login/openid/redirect/', views.UserLoginOpenIDRedirectView.as_view(),
+         name='login-openid-redirect'),
+
     path('password/forgot/', views.UserForgotPasswordView.as_view(), name='forgot-password'),
     path('password/forgot/sendmail-success/', views.UserForgotPasswordSendmailSuccessView.as_view(), name='forgot-password-sendmail-success'),
     path('password/reset/', views.UserResetPasswordView.as_view(), name='reset-password'),
