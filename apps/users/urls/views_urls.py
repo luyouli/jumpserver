@@ -11,6 +11,9 @@ urlpatterns = [
     path('login/', views.UserLoginView.as_view(), name='login'),
     path('logout/', views.UserLogoutView.as_view(), name='logout'),
     path('login/otp/', views.UserLoginOtpView.as_view(), name='login-otp'),
+    path('login/keycloak/', views.UserLoginKeycloakView.as_view(), name='login-keycloak'),
+    path('login/keycloak/redirect/', views.UserLoginKeycloakRedirectView.as_view(), name='login-keycloak-redirect'),
+
     path('password/forgot/', views.UserForgotPasswordView.as_view(), name='forgot-password'),
     path('password/forgot/sendmail-success/', views.UserForgotPasswordSendmailSuccessView.as_view(), name='forgot-password-sendmail-success'),
     path('password/reset/', views.UserResetPasswordView.as_view(), name='reset-password'),

@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 import os
+from django.http.request import QueryDict
 from django.core.cache import cache
 from django.shortcuts import render
 from django.contrib.auth import login as auth_login, logout as auth_logout
@@ -30,12 +31,12 @@ from ..utils import send_reset_password_mail, check_otp_code, \
 from ..tasks import write_login_log_async
 from .. import forms
 
-
 __all__ = [
     'UserLoginView', 'UserLoginOtpView', 'UserLogoutView',
     'UserForgotPasswordView', 'UserForgotPasswordSendmailSuccessView',
     'UserResetPasswordView', 'UserResetPasswordSuccessView',
-    'UserFirstLoginView', 'LoginLogListView'
+    'UserFirstLoginView', 'LoginLogListView', 'UserLoginKeycloakView',
+    'UserLoginKeycloakRedirectView',
 ]
 
 
@@ -62,7 +63,8 @@ class UserLoginView(FormView):
         ip = get_request_ip(request)
         username = self.request.POST.get('username')
         if is_block_login(username, ip):
-            return self.render_to_response(self.get_context_data(block_login=True))
+            return self.render_to_response(
+                self.get_context_data(block_login=True))
         return super().post(request, *args, **kwargs)
 
     def form_valid(self, form):
@@ -127,7 +129,8 @@ class UserLoginView(FormView):
                 'status': True
             }
             self.write_login_log(data)
-            return redirect_user_first_login_or_index(self.request, self.redirect_field_name)
+            return redirect_user_first_login_or_index(self.request,
+                                                      self.redirect_field_name)
 
     def get_context_data(self, **kwargs):
         context = {
@@ -176,11 +179,13 @@ class UserLoginOtpView(FormView):
                 'status': False
             }
             self.write_login_log(data)
-            form.add_error('otp_code', _('MFA code invalid, or ntp sync server time'))
+            form.add_error('otp_code',
+                           _('MFA code invalid, or ntp sync server time'))
             return super().form_invalid(form)
 
     def get_success_url(self):
-        return redirect_user_first_login_or_index(self.request, self.redirect_field_name)
+        return redirect_user_first_login_or_index(self.request,
+                                                  self.redirect_field_name)
 
     def write_login_log(self, data):
         login_ip = get_request_ip(self.request)
@@ -192,6 +197,55 @@ class UserLoginOtpView(FormView):
         }
         data.update(tmp_data)
         write_login_log_async.delay(**data)
+
+
+class UserLoginKeycloakView(TemplateView):
+
+    def get(self, request, *args, **kwargs):
+        referer_url = request.META.get('HTTP_REFERER', '/')
+        if self.request.user.is_authenticated:
+            return redirect(to=referer_url)
+        url = 'https://rdtest2.fit2cloud.com/auth/realms/cmp/protocol/openid-connect/auth?'
+        query = QueryDict('', mutable=True)
+        params = {
+            'client_id': 'jumpserver',
+            'redirect_uri': 'http://localhost:9090/users/login/keycloak/redirect/',
+            'response_type': 'code',
+            'scope': 'openid',
+        }
+        query.update(params)
+        url += query.urlencode()
+        print('url: ', url)
+        return redirect(to=url)
+
+
+class UserLoginKeycloakRedirectView(TemplateView):
+    def get(self, request, *args, **kwargs):
+        from keycloak import KeycloakOpenID
+        from common.utils import get_object_or_none
+        code = request.GET['code']
+        keycloak_openid = KeycloakOpenID(
+            server_url="https://rdtest2.fit2cloud.com/auth/",
+            realm_name="cmp",
+            client_id="jumpserver",
+            client_secret_key="9a5aad43-1c9d-46af-9a0e-1a8f8466abc4"
+        )
+        token = keycloak_openid.token(
+            grant_type=["authorization_code"],
+            code=code,
+            redirect_uri='http://localhost:9090/users/login/keycloak/redirect/',
+        )
+        userinfo = keycloak_openid.userinfo(token['access_token'])
+        user = get_object_or_none(model=User, username=userinfo.get('preferred_username'))
+        if not user:
+            user = User.objects.create(
+                username=userinfo.get('preferred_username'),
+                first_name=userinfo.get('given_name', ''),
+                last_name=userinfo.get('family_name', ''),
+                email=userinfo.get('email')
+            )
+        auth_login(self.request, user)
+        return redirect(reverse('index'))
 
 
 @method_decorator(never_cache, name='dispatch')
@@ -255,7 +309,7 @@ class UserResetPasswordSuccessView(TemplateView):
             'auto_redirect': True,
         }
         kwargs.update(context)
-        return super()\
+        return super() \
             .get_context_data(**kwargs)
 
 
@@ -267,7 +321,8 @@ class UserResetPasswordView(TemplateView):
         user = User.validate_reset_token(token)
 
         check_rules, min_length = get_password_check_rules()
-        password_rules = {'password_check_rules': check_rules, 'min_length': min_length}
+        password_rules = {'password_check_rules': check_rules,
+                          'min_length': min_length}
         kwargs.update(password_rules)
 
         if not user:
