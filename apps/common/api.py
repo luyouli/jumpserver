@@ -104,7 +104,11 @@ class ReplayStorageCreateAPI(APIView):
         data = {storage_name: storage_data}
 
         if not self.is_valid(storage_data):
-            return Response({"error": _("Error: Account invalid")}, status=401)
+            return Response({
+                "error": _("Error: Account invalid (Please make sure the "
+                           "information such as Access key or Secret key is correct)")},
+                status=401
+            )
 
         Setting.save_storage('TERMINAL_REPLAY_STORAGE', data)
         return Response({"msg": _('Create succeed')}, status=200)
@@ -136,7 +140,11 @@ class CommandStorageCreateAPI(APIView):
         storage_name = storage_data.pop('NAME')
         data = {storage_name: storage_data}
         if not self.is_valid(storage_data):
-            return Response({"error": _("Error: Account invalid")}, status=401)
+            return Response(
+                {"error": _("Error: Account invalid (Please make sure the "
+                            "information such as Access key or Secret key is correct)")},
+                status=401
+            )
 
         Setting.save_storage('TERMINAL_COMMAND_STORAGE', data)
         return Response({"msg": _('Create succeed')}, status=200)
@@ -168,13 +176,16 @@ class DjangoSettingsAPI(APIView):
             return Response("Not in debug mode")
 
         data = {}
-        for k, v in settings.__dict__.items():
-            if k and k.isupper():
-                try:
-                    json.dumps(v)
-                    data[k] = v
-                except (json.JSONDecodeError, TypeError):
-                    data[k] = str(v)
+        for i in [settings, getattr(settings, '_wrapped')]:
+            if not i:
+                continue
+            for k, v in i.__dict__.items():
+                if k and k.isupper():
+                    try:
+                        json.dumps(v)
+                        data[k] = v
+                    except (json.JSONDecodeError, TypeError):
+                        data[k] = str(v)
         return Response(data)
 
 

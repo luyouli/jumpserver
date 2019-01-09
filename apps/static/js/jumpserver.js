@@ -528,6 +528,7 @@ jumpserver.initServerSideDataTable = function (options) {
         lengthMenu: [[10, 15, 25, 50], [10, 15, 25, 50]]
     });
     table.selected = [];
+    table.selected_rows = [];
     table.on('select', function(e, dt, type, indexes) {
         var $node = table[ type ]( indexes ).nodes().to$();
         $node.find('input.ipt_check').prop('checked', true);
@@ -535,7 +536,8 @@ jumpserver.initServerSideDataTable = function (options) {
         if (type === 'row') {
             var rows = table.rows(indexes).data();
             $.each(rows, function (id, row) {
-                if (row.id){
+                table.selected_rows.push(row);
+                if (row.id && $.inArray(row.id, table.selected) === -1){
                     table.selected.push(row.id)
                 }
             })
@@ -688,41 +690,69 @@ function setUrlParam(url, name, value) {
     return url
 }
 
+// Password check rules
+var rules_short_map_id = {
+    'min': 'id_security_password_min_length',
+    'upper': 'id_security_password_upper_case',
+    'lower': 'id_security_password_lower_case',
+    'number': 'id_security_password_number',
+    'special': 'id_security_password_special_char'
+};
+
+var rules_id_map_label = {
+    'id_security_password_min_length': gettext('Password minimum length {N} bits'),
+    'id_security_password_upper_case': gettext('Must contain capital letters'),
+    'id_security_password_lower_case': gettext('Must contain lowercase letters'),
+    'id_security_password_number': gettext('Must contain numeric characters'),
+    'id_security_password_special_char': gettext('Must contain special characters')
+};
+
+function getRuleLabel(rule){
+    var label = '';
+    if (rule.key === rules_short_map_id['min']){
+        label = rules_id_map_label[rule.key].replace('{N}', rule.value)
+    }
+    else{
+        label = rules_id_map_label[rule.key]
+    }
+    return label
+}
+
 // 校验密码-改变规则颜色
 function checkPasswordRules(password, minLength) {
     if (wordMinLength(password, minLength)) {
-        $('#rule_SECURITY_PASSWORD_MIN_LENGTH').css('color', 'green')
+        $('#'+rules_short_map_id['min']).css('color', 'green')
     }
     else {
-        $('#rule_SECURITY_PASSWORD_MIN_LENGTH').css('color', '#908a8a')
+        $('#'+rules_short_map_id['min']).css('color', '#908a8a')
     }
 
     if (wordUpperCase(password)) {
-        $('#rule_SECURITY_PASSWORD_UPPER_CASE').css('color', 'green');
+        $('#'+rules_short_map_id['upper']).css('color', 'green')
     }
     else {
-        $('#rule_SECURITY_PASSWORD_UPPER_CASE').css('color', '#908a8a')
+        $('#'+rules_short_map_id['upper']).css('color', '#908a8a')
     }
 
     if (wordLowerCase(password)) {
-        $('#rule_SECURITY_PASSWORD_LOWER_CASE').css('color', 'green')
+        $('#'+rules_short_map_id['lower']).css('color', 'green')
     }
     else {
-        $('#rule_SECURITY_PASSWORD_LOWER_CASE').css('color', '#908a8a')
+        $('#'+rules_short_map_id['lower']).css('color', '#908a8a')
     }
 
     if (wordNumber(password)) {
-        $('#rule_SECURITY_PASSWORD_NUMBER').css('color', 'green')
+        $('#'+rules_short_map_id['number']).css('color', 'green')
     }
     else {
-        $('#rule_SECURITY_PASSWORD_NUMBER').css('color', '#908a8a')
+        $('#'+rules_short_map_id['number']).css('color', '#908a8a')
     }
 
     if (wordSpecialChar(password)) {
-        $('#rule_SECURITY_PASSWORD_SPECIAL_CHAR').css('color', 'green')
+        $('#'+rules_short_map_id['special']).css('color', 'green')
     }
     else {
-        $('#rule_SECURITY_PASSWORD_SPECIAL_CHAR').css('color', '#908a8a')
+        $('#'+rules_short_map_id['special']).css('color', '#908a8a')
     }
 }
 
@@ -749,11 +779,12 @@ function wordSpecialChar(word) {
     return word.match(/[`,~,!,@,#,\$,%,\^,&,\*,\(,\),\-,_,=,\+,\{,\},\[,\],\|,\\,;,',:,",\,,\.,<,>,\/,\?]+/)
 }
 
+
 // 显示弹窗密码规则
 function popoverPasswordRules(password_check_rules, $el) {
     var message = "";
-    jQuery.each(password_check_rules, function (idx, rules) {
-        message += "<li id=" + rules.id + " style='list-style-type:none;'> <i class='fa fa-check-circle-o' style='margin-right:10px;' ></i>" + rules.label + "</li>";
+    jQuery.each(password_check_rules, function (idx, rule) {
+        message += "<li id=" + rule.key + " style='list-style-type:none;'> <i class='fa fa-check-circle-o' style='margin-right:10px;' ></i>" + getRuleLabel(rule) + "</li>";
     });
     //$('#id_password_rules').html(message);
     $el.html(message)
@@ -782,4 +813,33 @@ function initPopover($container, $progress, $idPassword, $el, password_check_rul
     };
     $idPassword.pwstrength(options);
     popoverPasswordRules(password_check_rules, $el);
+}
+
+// 解决input框中的资产和弹出表格中资产的显示不一致
+function initSelectedAssets2Table(){
+    var inputAssets = $('#id_assets').val();
+    var selectedAssets = asset_table2.selected.concat();
+
+    // input assets无，table assets选中，则取消勾选(再次click)
+    if (selectedAssets.length !== 0){
+        $.each(selectedAssets, function (index, assetId){
+            if ($.inArray(assetId, inputAssets) === -1){
+                $('#'+assetId).trigger('click');  // 取消勾选
+            }
+        });
+    }
+
+    // input assets有，table assets没选，则选中(click)
+    if (inputAssets !== null){
+        asset_table2.selected = inputAssets;
+        $.each(inputAssets, function(index, assetId){
+            var dom = document.getElementById(assetId);
+            if (dom !== null){
+                var selected = dom.parentElement.parentElement.className.indexOf('selected')
+            }
+            if (selected === -1){
+                $('#'+assetId).trigger('click');
+            }
+        });
+    }
 }

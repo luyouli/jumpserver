@@ -7,35 +7,24 @@ from rest_framework_bulk import BulkListSerializer
 
 from common.utils import get_signer, validate_ssh_public_key
 from common.mixins import BulkSerializerMixin
-from .models import User, UserGroup
+from ..models import User, UserGroup
 
 signer = get_signer()
 
 
 class UserSerializer(BulkSerializerMixin, serializers.ModelSerializer):
-    groups_display = serializers.SerializerMethodField()
-    groups = serializers.PrimaryKeyRelatedField(many=True, queryset = UserGroup.objects.all(), required=False)
 
     class Meta:
         model = User
         list_serializer_class = BulkListSerializer
-        exclude = [
-            'first_name', 'last_name', 'password', '_private_key',
-            '_public_key', '_otp_secret_key', 'user_permissions'
+        fields = [
+            'id', 'name', 'username', 'email', 'groups', 'groups_display',
+            'role', 'role_display', 'avatar_url', 'wechat', 'phone',
+            'otp_level', 'comment', 'source', 'source_display',
+            'is_valid', 'is_expired', 'is_active',
+            'created_by', 'is_first_login',
+            'date_password_last_updated', 'date_expired',
         ]
-        # validators = []
-
-    def get_field_names(self, declared_fields, info):
-        fields = super(UserSerializer, self).get_field_names(declared_fields, info)
-        fields.extend([
-            'groups_display', 'get_role_display',
-            'get_source_display', 'is_valid'
-        ])
-        return fields
-
-    @staticmethod
-    def get_groups_display(obj):
-        return " ".join([group.name for group in obj.groups.all()])
 
 
 class UserPKUpdateSerializer(serializers.ModelSerializer):
@@ -72,7 +61,7 @@ class UserGroupSerializer(BulkSerializerMixin, serializers.ModelSerializer):
         return [user.name for user in obj.users.all()]
 
 
-class UserGroupUpdateMemeberSerializer(serializers.ModelSerializer):
+class UserGroupUpdateMemberSerializer(serializers.ModelSerializer):
     users = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all())
 
     class Meta:
