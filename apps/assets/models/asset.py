@@ -153,7 +153,7 @@ class Asset(OrgModelMixin):
         nodes = []
         for node in self.get_nodes():
             _nodes = node.get_ancestor(with_self=True)
-            _nodes.append(_nodes)
+            nodes.append(_nodes)
         if flat:
             nodes = list(reduce(lambda x, y: set(x) | set(y), nodes))
         return nodes
@@ -185,7 +185,7 @@ class Asset(OrgModelMixin):
     @property
     def connectivity(self):
         if not self.is_unixlike():
-            return self.UNKNOWN
+            return self.REACHABLE
         key = self.CONNECTIVITY_CACHE_KEY.format(str(self.id))
         cached = cache.get(key, None)
         return cached if cached is not None else self.UNKNOWN
@@ -197,6 +197,7 @@ class Asset(OrgModelMixin):
 
     def get_auth_info(self):
         if self.admin_user:
+            self.admin_user.load_specific_asset_auth(self)
             return {
                 'username': self.admin_user.username,
                 'password': self.admin_user.password,
@@ -232,6 +233,7 @@ class Asset(OrgModelMixin):
         """
         data = self.to_json()
         if self.admin_user:
+            self.admin_user.load_specific_asset_auth(self)
             admin_user = self.admin_user
             data.update({
                 'username': admin_user.username,

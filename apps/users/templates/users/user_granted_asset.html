@@ -64,6 +64,7 @@ var zTree;
 var inited = false;
 var url;
 var asset_table;
+var treeUrl = "{% url 'api-perms:user-nodes-assets-as-tree' pk=object.id %}?show_assets=0&cache_policy=1";
 
 function initTable() {
     if (inited){
@@ -71,11 +72,12 @@ function initTable() {
     } else {
         inited = true;
     }
-    url = "{% url 'api-perms:user-assets' pk=object.id %}";
+    url = "{% url 'api-perms:user-assets' pk=object.id %}?cache_policy=1";
     var options = {
         ele: $('#user_assets_table'),
         columnDefs: [
             {targets: 1, createdCell: function (td, cellData, rowData) {
+                cellData = htmlEscape(cellData);
                 {% url 'assets:asset-detail' pk=DEFAULT_PK as the_url  %}
                 var detail_btn = '<a href="{{ the_url }}">' + cellData + '</a>';
                 $(td).html(detail_btn.replace('{{ DEFAULT_PK }}', rowData.id));
@@ -90,7 +92,8 @@ function initTable() {
             {targets: 4, createdCell: function (td, cellData) {
                 var users = [];
                 $.each(cellData, function (id, data) {
-                    users.push(data.name);
+                    var name = htmlEscape(data.name);
+                    users.push(name);
                 });
                 $(td).html(users.join(', '))
             }}
@@ -106,12 +109,13 @@ function initTable() {
 }
 
 function onSelected(event, treeNode) {
-    url = '{% url "api-perms:user-node-assets" pk=object.id node_id=DEFAULT_PK %}';
+    url = '{% url "api-perms:user-node-assets" pk=object.id node_id=DEFAULT_PK %}?cache_policy=1';
     var node_id = treeNode.meta.node.id;
     url = url.replace("{{ DEFAULT_PK }}", node_id);
     asset_table.ajax.url(url);
     asset_table.ajax.reload();
 }
+
 
 function initTree() {
     var setting = {
@@ -129,9 +133,13 @@ function initTree() {
         }
     };
 
-    $.get("{% url 'api-perms:user-nodes-assets-as-tree' pk=object.id %}?show_assets=0", function(data, status) {
+    $.get(treeUrl, function(data, status) {
         $.fn.zTree.init($("#assetTree"), setting, data);
         zTree = $.fn.zTree.getZTreeObj("assetTree");
+        rootNodeAddDom(zTree, function () {
+            treeUrl = treeUrl.replace('cache_policy=1', 'cache_policy=2');
+            initTree();
+        });
     });
 }
 

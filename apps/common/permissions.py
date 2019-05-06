@@ -35,7 +35,7 @@ class IsSuperUser(IsValidUser):
 class IsSuperUserOrAppUser(IsSuperUser):
     def has_permission(self, request, view):
         return super(IsSuperUserOrAppUser, self).has_permission(request, view) \
-            and (request.user.is_superuser or request.user.is_app)
+            or request.user.is_app
 
 
 class IsOrgAdmin(IsValidUser):
@@ -68,6 +68,14 @@ class IsCurrentUserOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
         return obj == request.user
+
+
+class LoginRequiredMixin(UserPassesTestMixin):
+    def test_func(self):
+        if self.request.user.is_authenticated:
+            return True
+        else:
+            return False
 
 
 class AdminUserRequiredMixin(UserPassesTestMixin):

@@ -7,6 +7,7 @@ from .. import api
 app_name = 'perms'
 
 router = routers.DefaultRouter()
+router.register('actions', api.ActionViewSet, 'action')
 router.register('asset-permissions', api.AssetPermissionViewSet, 'asset-permission')
 
 urlpatterns = [
@@ -43,6 +44,9 @@ urlpatterns = [
     path('user-group/<uuid:pk>/nodes-assets/',
          api.UserGroupGrantedNodesWithAssetsApi.as_view(),
          name='user-group-nodes-assets'),
+    path('user-group/<uuid:pk>/nodes-assets/tree/',
+         api.UserGroupGrantedNodesWithAssetsAsTreeApi.as_view(),
+         name='user-group-nodes-assets-as-tree'),
     path('user-group/<uuid:pk>/nodes/<uuid:node_id>/assets/',
          api.UserGroupGrantedNodeAssetsApi.as_view(),
          name='user-group-node-assets'),
@@ -64,6 +68,8 @@ urlpatterns = [
     # 验证用户是否有某个资产和系统用户的权限
     path('asset-permission/user/validate/', api.ValidateUserAssetPermissionApi.as_view(),
          name='validate-user-asset-permission'),
+    path('asset-permission/user/actions/', api.GetUserAssetPermissionActionsApi.as_view(),
+         name='get-user-asset-permission-actions'),
 ]
 
 urlpatterns += router.urls

@@ -10,14 +10,30 @@ import sys
 import signal
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
-
-from apps import __version__
+sys.path.insert(0, BASE_DIR)
 
 try:
-    from config import config as CONFIG
-except ImportError:
-    print("Could not find config file, `cp config_example.py config.py`")
+    from apps.jumpserver import const
+    __version__ = const.VERSION
+except ImportError as e:
+    print("Not found __version__: {}".format(e))
+    print("Sys path: {}".format(sys.path))
+    print("Python is: ")
+    print(subprocess.call('which python', shell=True))
+    __version__ = 'Unknown'
+    try:
+        import apps
+        print("List apps: {}".format(os.listdir('apps')))
+        print('apps is: {}'.format(apps))
+    except:
+        pass
+
+try:
+    from apps.jumpserver.conf import load_user_config
+    CONFIG = load_user_config()
+except ImportError as e:
+    print("Import error: {}".format(e))
+    print("Could not find config file, `cp config_example.yml config.yml`")
     sys.exit(1)
 
 os.environ["PYTHONIOENCODING"] = "UTF-8"
@@ -107,8 +123,7 @@ def is_running(s, unlink=True):
     pid_file = get_pid_file_path(s)
 
     if os.path.isfile(pid_file):
-        with open(pid_file, 'r') as f:
-            pid = get_pid(s)
+        pid = get_pid(s)
         if check_pid(pid):
             return True
 
@@ -120,12 +135,15 @@ def is_running(s, unlink=True):
 def parse_service(s):
     if s == 'all':
         return all_services
+    elif "," in s:
+        return [i.strip() for i in s.split(',')]
     else:
         return [s]
 
 
 def start_gunicorn():
     print("\n- Start Gunicorn WSGI HTTP Server")
+    prepare()
     service = 'gunicorn'
     bind = '{}:{}'.format(HTTP_HOST, HTTP_PORT)
     log_format = '%(h)s %(t)s "%(r)s" %(s)s %(b)s '
@@ -146,7 +164,6 @@ def start_gunicorn():
 
     if DAEMON:
         cmd.extend([
-            '--access-logfile', log_file,
             '--daemon',
         ])
     else:
@@ -173,7 +190,7 @@ def start_celery():
     cmd = [
         'celery', 'worker',
         '-A',  'ops',
-        '-l', LOG_LEVEL.lower(),
+        '-l', 'INFO',
         '--pidfile', pid_file,
         '--autoscale', '20,4',
     ]
@@ -218,7 +235,6 @@ def start_service(s):
     print(time.ctime())
     print('Jumpserver version {}, more see https://www.jumpserver.org'.format(
         __version__))
-    prepare()
 
     services_handler = {
          "gunicorn": start_gunicorn,
@@ -316,7 +332,7 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "service", type=str, default="all", nargs="?",
-        choices=("all", "gunicorn", "celery", "beat"),
+        choices=("all", "gunicorn", "celery", "beat", "celery,beat"),
         help="The service to start",
     )
     parser.add_argument('-d', '--daemon', nargs="?", const=1)

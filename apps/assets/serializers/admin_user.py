@@ -3,6 +3,8 @@
 from django.core.cache import cache
 from rest_framework import serializers
 
+from common.serializers import AdaptedBulkListSerializer
+
 from ..models import Node, AdminUser
 from ..const import ADMIN_USER_CONN_CACHE_KEY
 
@@ -18,6 +20,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     reachable_amount = serializers.SerializerMethodField()
 
     class Meta:
+        list_serializer_class = AdaptedBulkListSerializer
         model = AdminUser
         fields = '__all__'
 
@@ -58,7 +61,7 @@ class ReplaceNodeAdminUserSerializer(serializers.ModelSerializer):
     管理用户更新关联到的集群
     """
     nodes = serializers.PrimaryKeyRelatedField(
-        many=True, queryset = Node.objects.all()
+        many=True, queryset=Node.objects.all()
     )
 
     class Meta:
@@ -66,4 +69,5 @@ class ReplaceNodeAdminUserSerializer(serializers.ModelSerializer):
         fields = ['id', 'nodes']
 
 
-
+class TaskIDSerializer(serializers.Serializer):
+    task = serializers.CharField(read_only=True)

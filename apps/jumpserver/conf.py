@@ -193,14 +193,16 @@ class Config(dict):
         if self.root_path:
             filename = os.path.join(self.root_path, filename)
         try:
-            with open(filename) as json_file:
-                obj = yaml.load(json_file)
+            with open(filename, 'rt', encoding='utf8') as f:
+                obj = yaml.load(f)
         except IOError as e:
             if silent and e.errno in (errno.ENOENT, errno.EISDIR):
                 return False
             e.strerror = 'Unable to load configuration file (%s)' % e.strerror
             raise
-        return self.from_mapping(obj)
+        if obj:
+            return self.from_mapping(obj)
+        return True
 
     def from_mapping(self, *mapping, **kwargs):
         """Updates the config like :meth:`update` ignoring items with non-upper
@@ -266,19 +268,36 @@ class Config(dict):
             rv[key] = v
         return rv
 
+    def convert_type(self, k, v):
+        default_value = self.defaults.get(k)
+        if default_value is None:
+            return v
+        tp = type(default_value)
+        try:
+            v = tp(v)
+        except Exception:
+            pass
+        return v
+
     def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, dict.__repr__(self))
 
     def __getitem__(self, item):
+        # 先从设置的来
         try:
             value = super().__getitem__(item)
         except KeyError:
             value = None
         if value is not None:
-            return value
+            return self.convert_type(item, value)
+        # 其次从环境变量来
         value = os.environ.get(item, None)
         if value is not None:
-            return value
+            if value.lower() == 'false':
+                value = False
+            elif value.lower() == 'true':
+                value = True
+            return self.convert_type(item, value)
         return self.defaults.get(item)
 
     def __getattr__(self, item):
@@ -286,8 +305,8 @@ class Config(dict):
 
 
 defaults = {
-    'SECRET_KEY': '2vym+ky!997d5kkcc64mnz06y1mmui3lut#(^wd=%s_qj$1%x',
-    'BOOTSTRAP_TOKEN': 'PleaseChangeMe',
+    'SECRET_KEY': '',
+    'BOOTSTRAP_TOKEN': '',
     'DEBUG': True,
     'SITE_URL': 'http://localhost',
     'LOG_LEVEL': 'DEBUG',
@@ -303,6 +322,7 @@ defaults = {
     'REDIS_PASSWORD': '',
     'REDIS_DB_CELERY': 3,
     'REDIS_DB_CACHE': 4,
+    'REDIS_DB_SESSION': 5,
     'CAPTCHA_TEST_MODE': None,
     'TOKEN_EXPIRATION': 3600 * 24,
     'DISPLAY_PER_PAGE': 25,
@@ -312,6 +332,7 @@ defaults = {
     'SESSION_COOKIE_AGE': 3600 * 24,
     'SESSION_EXPIRE_AT_BROWSER_CLOSE': False,
     'AUTH_OPENID': False,
+    'OTP_VALID_WINDOW': 0,
     'OTP_ISSUER_NAME': 'Jumpserver',
     'EMAIL_SUFFIX': 'jumpserver.org',
     'TERMINAL_PASSWORD_AUTH': True,
@@ -320,6 +341,8 @@ defaults = {
     'TERMINAL_ASSET_LIST_SORT_BY': 'hostname',
     'TERMINAL_ASSET_LIST_PAGE_SIZE': 'auto',
     'TERMINAL_SESSION_KEEP_DURATION': 9999,
+    'TERMINAL_HOST_KEY': '',
+    'TERMINAL_TELNET_REGEX': '',
     'SECURITY_MFA_AUTH': False,
     'SECURITY_LOGIN_LIMIT_COUNT': 7,
     'SECURITY_LOGIN_LIMIT_TIME': 30,
@@ -330,21 +353,50 @@ defaults = {
     'SECURITY_PASSWORD_LOWER_CASE': False,
     'SECURITY_PASSWORD_NUMBER': False,
     'SECURITY_PASSWORD_SPECIAL_CHAR': False,
+    'AUTH_RADIUS': False,
+    'RADIUS_SERVER': 'localhost',
+    'RADIUS_PORT': 1812,
+    'RADIUS_SECRET': '',
+    'HTTP_BIND_HOST': '0.0.0.0',
+    'HTTP_LISTEN_PORT': 8080,
+    'LOGIN_LOG_KEEP_DAYS': 90,
+    'ASSETS_PERM_CACHE_TIME': 3600,
 }
+
+
+def load_from_object(config):
+    try:
+        from config import config as c
+        config.from_object(c)
+        return True
+    except ImportError:
+        pass
+    return False
+
+
+def load_from_yml(config):
+    for i in ['config.yml', 'config.yaml']:
+        if not os.path.isfile(os.path.join(config.root_path, i)):
+            continue
+        loaded = config.from_yaml(i)
+        if loaded:
+            return True
+    return False
 
 
 def load_user_config():
     sys.path.insert(0, PROJECT_DIR)
     config = Config(PROJECT_DIR, defaults)
-    try:
-        from config import config as c
-        config.from_object(c)
-    except ImportError:
+
+    loaded = load_from_object(config)
+    if not loaded:
+        loaded = load_from_yml(config)
+    if not loaded:
         msg = """
     
         Error: No config file found.
     
-        You can run `cp config_example.py config.py`, and edit it.
+        You can run `cp config_example.yml config.yml`, and edit it.
         """
         raise ImportError(msg)
     return config

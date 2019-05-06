@@ -8,6 +8,8 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.translation import ugettext
 from django.db import models
 
+
+from orgs.models import Organization
 from ..ansible.runner import CommandRunner
 from ..inventory import JMSInventory
 
@@ -29,7 +31,7 @@ class CommandExecution(models.Model):
 
     @property
     def inventory(self):
-        return JMSInventory(self.hosts.all(), run_as=self.run_as)
+        return JMSInventory(self.hosts.all(), run_as=self.run_as.username)
 
     @property
     def result(self):
@@ -53,6 +55,8 @@ class CommandExecution(models.Model):
 
     def run(self):
         print('-'*10 + ' ' + ugettext('Task start') + ' ' + '-'*10)
+        org = Organization.get_instance(self.run_as.org_id)
+        org.change_to()
         self.date_start = timezone.now()
         ok, msg = self.run_as.is_command_can_run(self.command)
         if ok:
