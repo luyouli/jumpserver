@@ -10,23 +10,7 @@
             <div class="col-sm-12">
                 <div class="ibox float-e-margins">
                     <div class="panel-options">
-                        <ul class="nav nav-tabs">
-                            <li>
-                                <a href="{% url 'settings:basic-setting' %}" class="text-center"><i class="fa fa-cubes"></i> {% trans 'Basic setting' %}</a>
-                            </li>
-                            <li>
-                                <a href="{% url 'settings:email-setting' %}"  class="text-center"><i class="fa fa-envelope"></i> {% trans 'Email setting' %} </a>
-                            </li>
-                            <li class="active">
-                                <a href="{% url 'settings:ldap-setting' %}" class="text-center"><i class="fa fa-archive"></i> {% trans 'LDAP setting' %} </a>
-                            </li>
-                            <li>
-                                <a href="{% url 'settings:terminal-setting' %}" class="text-center"><i class="fa fa-hdd-o"></i> {% trans 'Terminal setting' %} </a>
-                            </li>
-                            <li>
-                                <a href="{% url 'settings:security-setting' %}" class="text-center"><i class="fa fa-lock"></i> {% trans 'Security setting' %} </a>
-                            </li>
-                        </ul>
+                        {% include 'settings/_setting_tabs.html' %}
                     </div>
                     <div class="tab-content">
                         <div class="col-sm-12" style="padding-left:0">
@@ -60,9 +44,8 @@
                                         <div class="col-sm-4 col-sm-offset-2">
                                             <button class="btn btn-default" type="reset"> {% trans 'Reset' %}</button>
                                             <button class="btn btn-default btn-test" type="button"> {% trans 'Test connection' %}</button>
-{#                                            <button class="btn btn-primary sync_button " data-toggle="modal" data-target="#sync_users_modal" type="button">{% trans 'Synchronization' %}</button>#}
-                                            <button id="submit_button" class="btn btn-primary" type="submit">{% trans 'Submit' %}</button>
                                             <button class="btn btn-default sync_button " data-toggle="modal" data-target="#ldap_list_users_modal" type="button">{% trans 'Bulk import' %}</button>
+                                            <button id="submit_button" class="btn btn-primary" type="submit">{% trans 'Submit' %}</button>
                                         </div>
                                     </div>
                                     </form>
@@ -97,7 +80,7 @@ $(document).ready(function () {
     function success(message) {
         toastr.success(message.msg)
     }
-    APIUpdateAttr({
+    requestApi({
         url: the_url,
         body: JSON.stringify(data),
         method: "POST",
@@ -106,36 +89,6 @@ $(document).ready(function () {
         error: error
     });
 })
-.on("click","#btn_ldap_modal_confirm",function () {
-    var user_names=[];
-    $("tbody input[type='checkbox']:checked").each(function () {
-        user_names.push($(this).attr('id'));
-    });
-
-    if (user_names.length === 0){
-        var msg = "{% trans 'User is not currently selected, please check the user you want to import'%}"
-        toastr.error(msg);
-        return
-     }
-
-    var the_url =  "{% url "api-settings:ldap-user-sync" %}";
-
-    function error(message) {
-        toastr.error(message)
-    }
-
-    function success(message) {
-        toastr.success(message.msg)
-    }
-    APIUpdateAttr({
-        url: the_url,
-        body: JSON.stringify({'user_names':user_names}),
-        method: "POST",
-        flash_message: false,
-        success: success,
-        error: error
-    });
- })
 
 </script>
 {% endblock %}
