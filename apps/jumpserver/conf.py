@@ -18,6 +18,8 @@ from django.urls import reverse_lazy
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_DIR = os.path.dirname(BASE_DIR)
+XPACK_DIR = os.path.join(BASE_DIR, 'xpack')
+HAS_XPACK = os.path.isdir(XPACK_DIR)
 
 
 def import_string(dotted_path):
@@ -84,11 +86,10 @@ class Config(dict):
     :param defaults: an optional dictionary of default values
     """
     defaults = {
-        # Django Config
+        # Django Config, Must set before start
         'SECRET_KEY': '',
         'BOOTSTRAP_TOKEN': '',
         'DEBUG': True,
-        'SITE_URL': 'http://localhost:8080',
         'LOG_LEVEL': 'DEBUG',
         'LOG_DIR': os.path.join(PROJECT_DIR, 'logs'),
         'DB_ENGINE': 'mysql',
@@ -100,10 +101,13 @@ class Config(dict):
         'REDIS_HOST': '127.0.0.1',
         'REDIS_PORT': 6379,
         'REDIS_PASSWORD': '',
+        # Default value
         'REDIS_DB_CELERY': 3,
         'REDIS_DB_CACHE': 4,
         'REDIS_DB_SESSION': 5,
         'REDIS_DB_WS': 6,
+
+        'SITE_URL': 'http://localhost:8080',
         'CAPTCHA_TEST_MODE': None,
         'TOKEN_EXPIRATION': 3600 * 24,
         'DISPLAY_PER_PAGE': 25,
@@ -148,8 +152,14 @@ class Config(dict):
         'RADIUS_ENCRYPT_PASSWORD': True,
         'OTP_IN_RADIUS': False,
 
+        'AUTH_CAS': False,
+        'CAS_SERVER_URL': "http://host/cas/",
+        'CAS_ROOT_PROXIED_AS': '',
+        'CAS_LOGOUT_COMPLETELY': True,
+        'CAS_VERSION': 3,
+
         'OTP_VALID_WINDOW': 2,
-        'OTP_ISSUER_NAME': 'Jumpserver',
+        'OTP_ISSUER_NAME': 'JumpServer',
         'EMAIL_SUFFIX': 'jumpserver.org',
 
         'TERMINAL_PASSWORD_AUTH': True,
@@ -179,9 +189,10 @@ class Config(dict):
         'HTTP_LISTEN_PORT': 8080,
         'WS_LISTEN_PORT': 8070,
         'LOGIN_LOG_KEEP_DAYS': 90,
+        'TASK_LOG_KEEP_DAYS': 10,
         'ASSETS_PERM_CACHE_TIME': 3600 * 24,
         'SECURITY_MFA_VERIFY_TTL': 3600,
-        'ASSETS_PERM_CACHE_ENABLE': False,
+        'ASSETS_PERM_CACHE_ENABLE': HAS_XPACK,
         'SYSLOG_ADDR': '',  # '192.168.0.1:514'
         'SYSLOG_FACILITY': 'user',
         'SYSLOG_SOCKTYPE': 2,
@@ -193,6 +204,7 @@ class Config(dict):
         'FORCE_SCRIPT_NAME': '',
         'LOGIN_CONFIRM_ENABLE': False,
         'WINDOWS_SKIP_ALL_MANUAL_PASSWORD': False,
+        'ORG_CHANGE_TO_URL': ''
     }
 
     def convert_type(self, k, v):
@@ -283,6 +295,8 @@ class DynamicConfig:
         ]
         if self.get('AUTH_LDAP'):
             backends.insert(0, 'authentication.backends.ldap.LDAPAuthorizationBackend')
+        if self.static_config.get('AUTH_CAS'):
+            backends.insert(0, 'authentication.backends.cas.CASBackend')
         if self.static_config.get('AUTH_OPENID'):
             backends.insert(0, 'authentication.backends.openid.backends.OpenIDAuthorizationPasswordBackend')
             backends.insert(0, 'authentication.backends.openid.backends.OpenIDAuthorizationCodeBackend')
