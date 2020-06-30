@@ -41,11 +41,10 @@ def default_node():
 
 
 class AssetManager(OrgManager):
-    # def get_queryset(self):
-    #     return super().get_queryset().annotate(
-    #         platform_base=models.F('platform__base')
-    #     )
-    pass
+    def get_queryset(self):
+        return super().get_queryset().annotate(
+            platform_base=models.F('platform__base')
+        )
 
 
 class AssetQuerySet(models.QuerySet):
@@ -244,6 +243,10 @@ class Asset(ProtocolsMixin, NodesRelationMixin, OrgModelMixin):
     @lazyproperty
     def platform_base(self):
         return self.platform.base
+
+    @lazyproperty
+    def admin_user_display(self):
+        return self.admin_user.name
 
     @lazyproperty
     def admin_user_username(self):

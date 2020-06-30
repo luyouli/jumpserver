@@ -58,12 +58,14 @@ class AssetByNodeFilterBackend(filters.BaseFilterBackend):
         if query_all:
             pattern = node.get_all_children_pattern(with_self=True)
         else:
-            pattern = node.get_children_key_pattern(with_self=True)
+            # pattern = node.get_children_key_pattern(with_self=True)
+            # 只显示当前节点下资产
+            pattern = r"^{}$".format(node.key)
         return self.perform_query(pattern, queryset)
 
 
 class LabelFilterBackend(filters.BaseFilterBackend):
-    sep = '#'
+    sep = ':'
     query_arg = 'label'
 
     def get_schema_fields(self, view):
@@ -82,6 +84,8 @@ class LabelFilterBackend(filters.BaseFilterBackend):
 
         q = None
         for kv in labels_query:
+            if '#' in kv:
+                self.sep = '#'
             if self.sep not in kv:
                 continue
             key, value = kv.strip().split(self.sep)[:2]
